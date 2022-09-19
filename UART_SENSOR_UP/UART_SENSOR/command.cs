@@ -34,5 +34,18 @@ namespace UART_SENSOR
                     return ("0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00");
             }
         }
+
+        public static string GetSetCommand(Mode mode, int max, int min)
+        {
+            switch (mode)
+            {
+                case Mode.TEMPTURE:
+                    return ("0xFF 0x01 0x02 " + Convert.ToString(max, 16) + " " + Convert.ToString(min, 16) + " 0x00 0x00 0x00");
+                case Mode.ILLUMINA:
+                    return ("0xFF 0x01 0x03 " + Convert.ToString(max, 16) + " " + Convert.ToString(min, 16) + " 0x00 0x00 0x00");
+                default:
+                    return ("0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00");
+            }
+        }
     }
 }

@@ -54,17 +54,32 @@
 
 //-----------------------------------------
 //功能定义
-#define TEMPTURE 0x00 //温度传感器
-#define ILLUMINA 0x01 //光明电阻
-#define SMG 0x02      //数码管
+#define TEMPTURE 0x00     //温度传感器
+#define ILLUMINA 0x01     //光明电阻
+#define SET_TEMPTURE 0x02 //温度范围
+#define SET_ILLUMINA 0x03 //温度范围
 
 //-----------------------------------------
-//数码管段位码
-u8 const SMG_DUAN[] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F,
-                       0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71}; // 0~F的段码表
-u8 const SMG_WEI[] = {
-    0x01, 0x02, 0x04, 0x08,
-    0x10, 0x20, 0x40, 0x80}; //左边第一片数码管到最右边数码管的位选码
+//上下限设置
+u32 tempture_max = 27;
+u32 tempture_min = 20;
+u8 illumina_max = 120;
+u8 illumina_min = 40;
+
+#define tempture_max_led 0x00
+#define tempture_min_led 0x01
+#define illumina_max_led 0x02
+#define illumina_min_led 0x03
+
+sbit tempture_max_led_port = P0 ^ 0;
+sbit tempture_min_led_port = P0 ^ 1;
+sbit illumina_max_led_port = P0 ^ 2;
+sbit illumina_min_led_port = P0 ^ 3;
+
+bit tempture_max_led_data = 1;
+bit tempture_min_led_data = 1;
+bit illumina_max_led_data = 1;
+bit illumina_min_led_data = 1;
 
 //-----------------------------------------
 //外设切换部分
@@ -74,7 +89,7 @@ bit busy;
 
 //-----------------------------------------
 //通讯数组
-u8 COMMAND[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+u8 COMMAND[8] = {0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 u8 DATA[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 //-----------------------------------------
@@ -201,7 +216,7 @@ u8 RecvUart() {
 //刷新命令数据
 void RefreshUART() {
   DATA[0] = 0x00;
-  DATA[1] = 0x00;
+  DATA[1] = 0xFF;
   DATA[2] = 0x00;
   DATA[3] = 0x00;
   DATA[4] = 0x00;
@@ -233,11 +248,39 @@ void RecvCMD() {
   }
 }
 
+void LightLED() {
+  SelectHC573(4);
+  P0 = 0xFF;
+  SelectHC573(0);
+
+  SelectHC573(4);
+  tempture_max_led_port = tempture_max_led_data;
+  tempture_min_led_port = tempture_min_led_data;
+  illumina_max_led_port = illumina_max_led_data;
+  illumina_min_led_port = illumina_min_led_data;
+  SelectHC573(0);
+}
+
+//-----------------------------------------
+//检查温度范围
+void CheckTempture(u32 tempture) {
+  tempture = tempture / 10000;
+
+  tempture_max_led_data = 1;
+  tempture_min_led_data = 1;
+  if (tempture > tempture_max) {
+    tempture_max_led_data = 0;
+  } else if (tempture < tempture_min) {
+    tempture_min_led_data = 0;
+  }
+}
+
 //-----------------------------------------
 //读温度
 void ReadTempture() {
   u32 tempture;
   tempture = (u32)rd_temperature() * 10000;
+  CheckTempture(tempture);
 
   DATA[0] = DATA_START;
   DATA[1] = DATA_WRITE;
@@ -249,10 +292,23 @@ void ReadTempture() {
 }
 
 //-----------------------------------------
+//检查温度范围
+void CheckIllumination(u8 illumination) {
+  illumina_max_led_data = 1;
+  illumina_min_led_data = 1;
+  if (illumination > illumina_max) {
+    illumina_max_led_data = 0;
+  } else if (illumination < illumina_min) {
+    illumina_min_led_data = 0;
+  }
+}
+
+//-----------------------------------------
 //读光照
 void ReadIllumination() {
   u8 adc_val;
   adc_val = Read_ADC(ILLUMINA);
+  CheckIllumination(adc_val);
 
   DATA[0] = DATA_START;
   DATA[1] = DATA_WRITE;
@@ -277,46 +333,27 @@ void SYSReadFunc() {
     _nop_();
     break;
   }
-}
-
-void WriteSMG() {
-  u8 duan[8], i;
-
-  duan[0] = COMMAND[3] & 0xF0;
-  duan[1] = COMMAND[3] & 0x0F;
-  duan[2] = COMMAND[4] & 0x0F;
-  duan[3] = COMMAND[4] & 0x0F;
-  duan[4] = COMMAND[5] & 0x0F;
-  duan[5] = COMMAND[5] & 0x0F;
-  duan[6] = COMMAND[6] & 0x0F;
-  duan[7] = COMMAND[6] & 0x0F;
-
-  for (i = 0; i < 8; i++) {
-    SelectHC573(6);
-    P0 = 0x00;
-    SelectHC573(0);
-
-    SelectHC573(7);
-    P0 = SMG_WEI[i];
-    SelectHC573(0);
-
-    SelectHC573(6);
-    P0 = SMG_DUAN[duan[i]];
-    SelectHC573(0);
-  }
+  LightLED();
 }
 
 //-----------------------------------------
 //写操作
 void SYSWriteFunc() {
   switch (COMMAND[2]) {
-  case SMG:
-    WriteSMG();
+  case SET_TEMPTURE:
+    tempture_max = COMMAND[3];
+    tempture_min = COMMAND[4];
+    break;
+  case SET_ILLUMINA:
+    illumina_max = COMMAND[3];
+    illumina_min = COMMAND[4];
     break;
   default:
     _nop_();
     break;
   }
+  DATA[0] = DATA_START;
+  DATA[1] = DATA_READ;
 }
 
 //-----------------------------------------
@@ -328,19 +365,21 @@ void main() {
 
   while (1) {
     RecvCMD();
-    switch (COMMAND[1]) //检测读写
-    {
-    case CMD_READ:   //读操作
-      SYSReadFunc(); //调用读操作
-      break;
-    case CMD_WRITE:
-      break;
-    default:
-      break;
+    if (COMMAND[0] == CMD_START) {
+      switch (COMMAND[1]) //检测读写
+      {
+      case CMD_READ:   //读操作
+        SYSReadFunc(); //调用读操作
+        break;
+      case CMD_WRITE:
+        SYSWriteFunc();
+        break;
+      default:
+        break;
+      }
+      SendDATA();
+      RefreshUART();
     }
-
-    SendDATA();
-    RefreshUART();
   }
 }
 

@@ -48,7 +48,11 @@ namespace UART_SENSOR
                 }
                 catch { }
             }
-            comboBox1.Text = comboBox1.Items[0].ToString();
+            try
+            {
+                comboBox1.Text = comboBox1.Items[0].ToString();
+            }
+            catch { }
         }
 
         private void sendSerialData(string data)
@@ -128,7 +132,7 @@ namespace UART_SENSOR
             // 判断数据是否正确
             if (_Bytes[0] == command.REC_START && _Bytes[1] == command.WRITE && _Bytes[2] == command.TEMPTURE)
             {
-                int a = ((_Bytes[3] << 24) + (_Bytes[4] << 16) + (_Bytes[5] << 8) + _Bytes[6]) / 10000;
+                double a = ((_Bytes[3] << 24) + (_Bytes[4] << 16) + (_Bytes[5] << 8) + _Bytes[6]) / 10000.0;
                 textBox1.Text = a.ToString() + "℃";
             }
         }
@@ -180,12 +184,20 @@ namespace UART_SENSOR
                 {
                     isStart = false;
                     timer1.Enabled = false;
+                    button5.Enabled = true;
+                    button6.Enabled = true;
+                    button7.Enabled = true;
+                    button2.Enabled = true;
                     button1.Text = "开始监测";
                 }
                 else
                 {
                     isStart = true;
                     timer1.Enabled = true;
+                    button5.Enabled = false;
+                    button6.Enabled = false;
+                    button7.Enabled = false;
+                    button2.Enabled = false;
                     button1.Text = "停止监测";
                 }
             }
@@ -222,6 +234,7 @@ namespace UART_SENSOR
                 Logger("串口关闭成功");
                 serialPort1.Close();
                 button4.Text = "打开串口";
+                timer1.Enabled = false;
                 button3.Enabled = true;
                 button1.Enabled = false;
             }
@@ -248,6 +261,80 @@ namespace UART_SENSOR
                 button6.Enabled = false;
                 get_illumination();
                 button6.Enabled = true;
+            }
+            else
+            {
+                MessageBox.Show("请先打开串口", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void button7_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)  // 串口打开了
+            {
+                if (textBox5.Text == string.Empty)
+                {
+                    MessageBox.Show("请输入范围", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                else
+                {
+                    if (textBox5.Text.Contains('-'))
+                    {
+                        string[] val = textBox5.Text.Split('-');
+                        var min = int.Parse(val[0]);
+                        var max = int.Parse(val[1]);
+
+                        if (max < min || max < 0 || max > 250 || min < 0 || min > 250)
+                        {
+                            MessageBox.Show("输入范围错误，请输入0~250的整数", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                        else
+                        {
+                            sendSerialData(command.GetSetCommand(Mode.TEMPTURE, max, min));
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("输入格式错误，最小值-最大值", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+            else
+            {
+                MessageBox.Show("请先打开串口", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            if (serialPort1.IsOpen)  // 串口打开了
+            {
+                if (textBox4.Text == string.Empty)
+                {
+                    MessageBox.Show("请输入范围", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                else
+                {
+                    if (textBox4.Text.Contains('-'))
+                    {
+                        string[] val = textBox4.Text.Split('-');
+                        var min = int.Parse(val[0]);
+                        var max = int.Parse(val[1]);
+
+                        if (max < min || max < 0 || max > 250 || min < 0 || min > 250)
+                        {
+                            MessageBox.Show("输入范围错误，请输入0~250的整数", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                        else
+                        {
+                            sendSerialData(command.GetSetCommand(Mode.ILLUMINA, max, min));
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("输入格式错误，最小值-最大值", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
             }
             else
             {
